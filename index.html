@@ -1,0 +1,213 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>QR by KenTB — Trình tạo mã QR tự làm mới</title>
+  <meta name="description" content="Tạo mã QR từ đường link và tự làm mới giao diện sau mỗi 10 giây.">
+  <style>
+    :root { color-scheme: dark; --bg:#0b1020; --card:#121a2e; --line:#26334f; --text:#eef3ff; --muted:#a8b4ce; --accent:#7c9cff; --accent2:#65e0c2; }
+    * { box-sizing: border-box; }
+    body { margin:0; min-height:100vh; font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif; background:radial-gradient(ellipse at top,#1a2850 0%,var(--bg) 60%); color:var(--text); display:grid; place-items:center; padding:24px; }
+    .app { width:min(100%,960px); }
+    header { text-align:center; margin-bottom:24px; }
+    .badge { display:inline-flex; gap:8px; align-items:center; border:1px solid #314268; border-radius:999px; padding:7px 12px; color:#c6d4ff; font-size:12px; letter-spacing:.08em; text-transform:uppercase; }
+    h1 { font-size:clamp(30px,5vw,48px); margin:14px 0 8px; letter-spacing:-.04em; }
+    .subtitle { margin:0 auto; max-width:650px; color:var(--muted); line-height:1.6; }
+    .layout { display:grid; grid-template-columns:1fr 1fr; gap:18px; }
+    .card { background:rgba(18,26,46,.92); border:1px solid var(--line); border-radius:22px; padding:24px; box-shadow:0 24px 70px #0003; }
+    label { display:block; font-weight:650; margin-bottom:10px; }
+    .input-row { display:flex; gap:8px; }
+    input { width:100%; min-width:0; padding:14px 15px; border:1px solid #344465; border-radius:12px; background:#0b1223; color:var(--text); outline:none; font-size:15px; }
+    input:focus { border-color:var(--accent); box-shadow:0 0 0 3px #7c9cff22; }
+    button { border:0; border-radius:12px; padding:13px 16px; font-weight:750; cursor:pointer; transition:transform .15s,opacity .15s; }
+    button:hover { transform:translateY(-1px); } button:disabled { opacity:.45; cursor:not-allowed; transform:none; }
+    .primary { background:linear-gradient(135deg,var(--accent),#9d82ff); color:#081020; white-space:nowrap; }
+    .secondary { background:#202d49; color:var(--text); border:1px solid #344465; }
+    .actions { display:flex; flex-wrap:wrap; gap:9px; margin-top:14px; }
+    .hint { font-size:13px; line-height:1.55; color:var(--muted); margin:14px 0 0; }
+    .error { min-height:20px; color:#ff9f9f; font-size:13px; margin-top:10px; }
+    .qr-card { display:flex; flex-direction:column; align-items:center; text-align:center; }
+    .qr-frame { background:#fff; border-radius:18px; padding:16px; width:min(100%,310px); aspect-ratio:1; display:grid; place-items:center; }
+    #qr { width:100%; height:100%; object-fit:contain; image-rendering:pixelated; }
+    .placeholder { color:#65708a; font-size:14px; padding:20px; }
+    .status { margin-top:18px; display:flex; align-items:center; justify-content:center; gap:9px; color:var(--muted); font-size:14px; }
+    .dot { width:8px; height:8px; border-radius:50%; background:var(--accent2); box-shadow:0 0 12px #65e0c288; }
+    .count { font-variant-numeric:tabular-nums; font-size:38px; font-weight:800; letter-spacing:-.04em; margin:4px 0; }
+    .small { font-size:12px; color:var(--muted); overflow-wrap:anywhere; max-width:100%; display: none; }
+    .notice { margin-top:18px; padding:13px 15px; border:1px solid #66552d; border-radius:12px; background:#322a19; color:#f8df9a; font-size:13px; line-height:1.55; }
+    footer { text-align:center; margin-top:18px; color:#8290ad; font-size:12px; }
+    @media(max-width:720px) { body{padding:16px} .layout{grid-template-columns:1fr} .card{padding:19px} .input-row{flex-direction:column} .primary{width:100%} }
+  </style>
+</head>
+<body>
+<main class="app">
+  <header>
+    <div class="badge"><span>●</span> QR by KenTB · 10 SECONDS</div>
+    <h1>QR <span style="color:var(--accent)">by KenTB</span></h1>
+    <p class="subtitle">Dán đường link của bạn để tạo mã QR.</p>
+  </header>
+
+  <section class="layout">
+    <div class="card">
+      <label for="urlInput">Đường link cần chuyển đổi</label>
+      <div class="input-row">
+        <input id="urlInput" type="url" placeholder="https://example.com" autocomplete="url" spellcheck="false">
+        <button id="createBtn" class="primary">Tạo mã QR</button>
+      </div>
+      <div id="error" class="error" role="alert"></div>
+      <div class="actions">
+        <button id="changeBtn" class="secondary" disabled>↻ Đổi mã ngay</button>
+        <button id="downloadBtn" class="secondary" disabled>↓ Tải QR PNG</button>
+        <button id="clearBtn" class="secondary">Xóa link</button>
+      </div>
+      <p class="hint">Mẹo: nhập đầy đủ <b>https://</b> hoặc <b>http://</b>. Link được lưu trong trình duyệt hiện tại để bạn không phải nhập lại khi tải lại trang.</p>
+      <div class="notice"><b>Lưu ý:</b> Hệ thống tự động gắn thêm tham số thời gian thay đổi sau mỗi 10 giây giúp hình dáng ma trận QR xoay vòng liên tục.</div>
+    </div>
+
+    <div class="card qr-card">
+      <div class="qr-frame" id="qrFrame">
+        <div class="placeholder" id="placeholder">Mã QR sẽ xuất hiện ở đây</div>
+        <img id="qr" alt="Mã QR của đường link" hidden>
+      </div>
+      <div class="status"><span class="dot"></span><span id="statusText">Đang chờ đường link</span></div>
+      <div class="count" id="countdown">00:10</div>
+    </div>
+  </section>
+  <footer>QR by KenTB · Hoạt động trực tiếp trên trình duyệt · Không cần tài khoản</footer>
+</main>
+
+<script>
+(() => {
+  const $ = id => document.getElementById(id);
+  const input = $('urlInput'), qr = $('qr'), placeholder = $('placeholder');
+  const createBtn = $('createBtn'), changeBtn = $('changeBtn'), downloadBtn = $('downloadBtn');
+  let currentUrl = '', duration = 10, remaining = 10, timer = null, generation = 0, forceStep = 0;
+
+  input.value = localStorage.getItem('qr10_url') || '';
+
+  function validUrl(raw) {
+    try {
+      const u = new URL(raw.trim());
+      return ['http:', 'https:'].includes(u.protocol) ? u.href : null;
+    } catch { return null; }
+  }
+
+  function getDynamicUrl(baseUrl) {
+    try {
+      const u = new URL(baseUrl);
+      const timeBucket = Math.floor(Date.now() / 10000);
+      // Kết hợp thời gian và biến forceStep để mỗi lần bấm đổi mã hoặc hết giờ đều ra URL khác biệt hoàn toàn
+      u.searchParams.set('_t', timeBucket + '-' + forceStep);
+      return u.href;
+    } catch {
+      return baseUrl;
+    }
+  }
+
+  function renderQr(url) {
+    const dynamicTarget = getDynamicUrl(url);
+    const nonce = Date.now() + '-' + (++generation);
+    const src = 'https://api.qrserver.com/v1/create-qr-code/?size=600x600&format=png&margin=12&data='
+      + encodeURIComponent(dynamicTarget) + '&_=' + encodeURIComponent(nonce);
+      
+    qr.onload = () => {
+      qr.hidden = false;
+      placeholder.hidden = true;
+      $('statusText').textContent = 'Mã QR đang hoạt động (Đổi sau mỗi 10s)';
+      downloadBtn.disabled = false;
+    };
+    qr.onerror = () => {
+      qr.hidden = true;
+      placeholder.hidden = false;
+      placeholder.textContent = 'Không tải được QR. Kiểm tra kết nối mạng rồi thử lại.';
+      $('statusText').textContent = 'Lỗi tải mã QR';
+      downloadBtn.disabled = true;
+    };
+    qr.src = src;
+  }
+
+  function startCycle() {
+    clearInterval(timer);
+    remaining = duration;
+    $('countdown').textContent = '00:10';
+    timer = setInterval(() => {
+      remaining -= 1;
+      $('countdown').textContent = '00:' + String(Math.max(0, remaining)).padStart(2, '0');
+      if (remaining <= 0) {
+        forceStep++; // Tăng bước nhảy khi hết giờ tự động
+        renderQr(currentUrl);
+        remaining = duration;
+      }
+    }, 1000);
+  }
+
+  function create() {
+    const url = validUrl(input.value);
+    if (!url) {
+      $('error').textContent = 'Vui lòng nhập một URL hợp lệ, bắt đầu bằng http:// hoặc https://.';
+      return;
+    }
+    $('error').textContent = '';
+    currentUrl = url;
+    input.value = url;
+    localStorage.setItem('qr10_url', url);
+    createBtn.textContent = 'Cập nhật link';
+    changeBtn.disabled = false;
+    forceStep = 0;
+    renderQr(currentUrl);
+    startCycle();
+  }
+
+  createBtn.addEventListener('click', create);
+  input.addEventListener('keydown', e => { if (e.key === 'Enter') create(); });
+  
+  changeBtn.addEventListener('click', () => {
+    if (!currentUrl) return;
+    forceStep++; // Tăng biến forceStep để thay đổi mã QR ngay lập tức khi bấm nút
+    renderQr(currentUrl);
+    remaining = duration;
+    $('countdown').textContent = '00:10';
+  });
+
+  $('clearBtn').addEventListener('click', () => {
+    clearInterval(timer);
+    currentUrl = '';
+    input.value = '';
+    localStorage.removeItem('qr10_url');
+    qr.hidden = true;
+    qr.removeAttribute('src');
+    placeholder.hidden = false;
+    placeholder.textContent = 'Mã QR sẽ xuất hiện ở đây';
+    $('statusText').textContent = 'Đang chờ đường link';
+    $('countdown').textContent = '00:10';
+    $('error').textContent = '';
+    createBtn.textContent = 'Tạo mã QR';
+    changeBtn.disabled = true;
+    downloadBtn.disabled = true;
+  });
+
+  downloadBtn.addEventListener('click', async () => {
+    if (!qr.src || qr.hidden) return;
+    try {
+      const response = await fetch(qr.src);
+      if (!response.ok) throw new Error('QR image fetch failed');
+      const blob = await response.blob();
+      const blobUrl = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = blobUrl;
+      a.download = 'qr-code-10s.png';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(blobUrl);
+    } catch {
+      window.open(qr.src, '_blank', 'noopener');
+    }
+  });
+
+  if (input.value && validUrl(input.value)) create();
+})();
+</script>
+</body>
+</html>
